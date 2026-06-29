@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Datadog Synthetics — Test Page</title>
+
+  <!--
+    IFRAME BLOCKING:
+    In a real deployment, set these HTTP response headers on your server:
+      X-Frame-Options: DENY
+      Content-Security-Policy: frame-ancestors 'none'
+
+    The JS below is a belt-and-suspenders client-side check.
+  -->
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f5f6fa;
+      color: #1a1a2e;
+      min-height: 100vh;
+    }
+
+    #iframe-warning {
+      display: none;
+      position: fixed; inset: 0;
+      background: #fff3cd;
+      border: 4px solid #ffc107;
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 12px;
+      font-size: 1.3rem;
+      font-weight: 600;
+      color: #7a4f00;
+      text-align: center;
+      padding: 2rem;
+    }
+    #iframe-warning .code { font-size: 0.9rem; font-weight: 400; color: #555; margin-top: 8px; }
+
+    header {
+      background: #632ca6;
+      color: #fff;
+      padding: 1.25rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    header .logo { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.5px; }
+    header .subtitle { font-size: 0.85rem; opacity: 0.75; }
+
+    main { max-width: 860px; margin: 0 auto; padding: 2rem 1.5rem; display: grid; gap: 1.5rem; }
+
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      border: 1px solid #e2e4ec;
+      padding: 1.5rem;
+    }
+    .card h2 { font-size: 1rem; font-weight: 600; margin-bottom: 1rem; color: #1a1a2e; }
+
+    .status-row { display: flex; gap: 12px; flex-wrap: wrap; }
+    .badge {
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+    .badge.green  { background: #d4f5e2; color: #145c3e; }
+    .badge.red    { background: #fde8e8; color: #8b1a1a; }
+    .badge.yellow { background: #fef9c3; color: #7a5c00; }
+
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 520px) { .form-grid { grid-template-columns: 1fr; } }
+
+    label { display: block; font-size: 0.82rem; color: #555; margin-bottom: 4px; }
+    input[type="text"], input[type="email"], input[type="password"], select, textarea {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #cdd1de;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      background: #fafafa;
+      color: #1a1a2e;
+      transition: border-color 0.15s;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: #632ca6;
+      background: #fff;
+    }
+    textarea { resize: vertical; min-height: 80px; }
+
+    .btn {
+      display: inline-block;
+      padding: 9px 20px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.15s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn-primary { background: #632ca6; color: #fff; }
+    .btn-danger  { background: #e74c3c; color: #fff; }
+    .btn-ghost   { background: transparent; border: 1px solid #cdd1de; color: #333; }
+
+    #form-result {
+      display: none;
+      margin-top: 12px;
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 0.88rem;
+      font-weight: 500;
+    }
+    #form-result.success { background: #d4f5e2; color: #145c3e; }
+    #form-result.error   { background: #fde8e8; color: #8b1a1a; }
+
+    .link-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .link-list a {
+      color: #632ca6;
+      font-size: 0.9rem;
+      text-decoration: none;
+    }
+    .link-list a:hover { text-decoration: underline; }
+
+    .timer-display {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #632ca6;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 1px;
+    }
+
+    .resource-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    .resource-table th {
+      text-align: left;
+      padding: 8px 10px;
+      border-bottom: 2px solid #e2e4ec;
+      color: #555;
+      font-weight: 600;
+    }
+    .resource-table td { padding: 8px 10px; border-bottom: 1px solid #f0f1f5; }
+    .resource-table tr:last-child td { border-bottom: none; }
+
+    .assertion-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid #f0f1f5;
+      font-size: 0.88rem;
+    }
+    .assertion-row:last-child { border-bottom: none; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .dot.pass { background: #27ae60; }
+    .dot.fail { background: #e74c3c; }
+
+    footer {
+      text-align: center;
+      padding: 2rem;
+      font-size: 0.8rem;
+      color: #999;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Shown if loaded inside an iframe -->
+<div id="iframe-warning">
+  <span>⚠️ This page is being loaded inside an &lt;iframe&gt;</span>
+  <span>Embedding is blocked by policy.</span>
+  <span class="code">X-Frame-Options: DENY &nbsp;|&nbsp; CSP: frame-ancestors 'none'</span>
+</div>
+
+<script>
+  (function() {
+    if (window.self !== window.top) {
+      var w = document.getElementById("iframe-warning");
+      w.style.display = "flex";
+      document.body.style.overflow = "hidden";
+    }
+  })();
+</script>
+
+<header>
+  <div>
+    <div class="logo">🐶 Datadog Synthetics — Test Page</div>
+    <div class="subtitle">Use this page to validate browser and API monitor steps</div>
+  </div>
+</header>
+
+<main>
+
+  <!-- Status indicators -->
+  <div class="card">
+    <h2>Page load status</h2>
+    <div class="status-row">
+      <span class="badge green" id="badge-loaded">✓ Page loaded</span>
+      <span class="badge green" id="badge-js">✓ JavaScript active</span>
+      <span class="badge yellow" id="badge-iframe">⚠ iframe: checking…</span>
+    </div>
+    <p style="margin-top:14px; font-size:0.85rem; color:#555;" id="load-time-label">
+      Page rendered in <strong id="load-ms">—</strong> ms
+    </p>
+  </div>
+
+  <!-- Interactive form -->
+  <div class="card">
+    <h2>Form — fill &amp; submit</h2>
+    <div class="form-grid">
+      <div>
+        <label for="f-name">Full name</label>
+        <input type="text" id="f-name" name="name" placeholder="Jane Doe" data-testid="input-name" />
+      </div>
+      <div>
+        <label for="f-email">Email</label>
+        <input type="email" id="f-email" name="email" placeholder="jane@example.com" data-testid="input-email" />
+      </div>
+      <div>
+        <label for="f-pass">Password</label>
+        <input type="password" id="f-pass" name="password" placeholder="••••••••" data-testid="input-password" />
+      </div>
+      <div>
+        <label for="f-role">Role</label>
+        <select id="f-role" name="role" data-testid="select-role">
+          <option value="">— select —</option>
+          <option value="engineer">Engineer</option>
+          <option value="manager">Manager</option>
+          <option value="designer">Designer</option>
+        </select>
+      </div>
+      <div style="grid-column: 1/-1;">
+        <label for="f-notes">Notes</label>
+        <textarea id="f-notes" name="notes" data-testid="textarea-notes" placeholder="Optional notes…"></textarea>
+      </div>
+    </div>
+    <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
+      <button class="btn btn-primary" id="btn-submit" data-testid="btn-submit" onclick="submitForm()">Submit</button>
+      <button class="btn btn-ghost" onclick="resetForm()">Reset</button>
+    </div>
+    <div id="form-result" data-testid="form-result"></div>
+  </div>
+
+  <!-- Clickable elements / navigation -->
+  <div class="card">
+    <h2>Links &amp; navigation targets</h2>
+    <ul class="link-list">
+      <li><a href="#section-alpha" data-testid="link-alpha">→ Go to section Alpha</a></li>
+      <li><a href="#section-beta" data-testid="link-beta">→ Go to section Beta</a></li>
+      <li><a href="https://docs.datadoghq.com/synthetics/" target="_blank" rel="noopener" data-testid="link-external">→ Datadog Synthetics docs (external)</a></li>
+    </ul>
+  </div>
+
+  <!-- Assertions helper -->
+  <div class="card" id="section-alpha">
+    <h2>Assertion targets</h2>
+    <div>
+      <div class="assertion-row"><div class="dot pass"></div><span data-testid="assert-pass">This element is visible and has text</span></div>
+      <div class="assertion-row"><div class="dot pass"></div><span id="assert-title" data-testid="assert-title">Title: Datadog Synthetics — Test Page</span></div>
+      <div class="assertion-row"><div class="dot fail"></div><span data-testid="assert-fail">This element indicates a failure state</span></div>
+      <div class="assertion-row"><div class="dot pass"></div>
+        <span>Timestamp: <strong id="assert-timestamp" data-testid="assert-timestamp"></strong></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Timer / dynamic content -->
+  <div class="card" id="section-beta">
+    <h2>Dynamic content — timer</h2>
+    <p style="font-size:0.85rem;color:#555;margin-bottom:12px;">Use this to test waits and dynamic element assertions.</p>
+    <div class="timer-display" id="timer" data-testid="timer">00:00:00</div>
+    <div style="margin-top:14px;display:flex;gap:10px;">
+      <button class="btn btn-primary" id="btn-start" data-testid="btn-start-timer" onclick="startTimer()">Start</button>
+      <button class="btn btn-ghost"   id="btn-stop"  data-testid="btn-stop-timer"  onclick="stopTimer()">Stop</button>
+      <button class="btn btn-danger"  id="btn-reset" data-testid="btn-reset-timer" onclick="resetTimer()">Reset</button>
+    </div>
+  </div>
+
+  <!-- Network / resource table -->
+  <div class="card">
+    <h2>Simulated resource table</h2>
+    <p style="font-size:0.85rem;color:#555;margin-bottom:12px;">Static data for XPath / CSS selector testing.</p>
+    <table class="resource-table" id="resource-table" data-testid="resource-table">
+      <thead>
+        <tr>
+          <th>Resource</th>
+          <th>Type</th>
+          <th>Status</th>
+          <th>Size</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr data-testid="row-1"><td>main.css</td><td>stylesheet</td><td><span class="badge green">200</span></td><td>14 KB</td></tr>
+        <tr data-testid="row-2"><td>app.js</td><td>script</td><td><span class="badge green">200</span></td><td>82 KB</td></tr>
+        <tr data-testid="row-3"><td>logo.svg</td><td>image</td><td><span class="badge green">200</span></td><td>3 KB</td></tr>
+        <tr data-testid="row-4"><td>analytics.js</td><td>script</td><td><span class="badge red">404</span></td><td>—</td></tr>
+        <tr data-testid="row-5"><td>font.woff2</td><td>font</td><td><span class="badge yellow">304</span></td><td>28 KB</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Delayed element -->
+  <div class="card">
+    <h2>Delayed element (3 s)</h2>
+    <p style="font-size:0.85rem;color:#555;margin-bottom:12px;">Use "wait for element" assertions to detect this.</p>
+    <div id="delayed-element" data-testid="delayed-element"
+         style="display:none; padding:12px; background:#d4f5e2; border-radius:6px; color:#145c3e; font-weight:600; font-size:0.9rem;">
+      ✓ Delayed element appeared after 3 seconds
+    </div>
+    <div id="delayed-placeholder" style="font-size:0.85rem;color:#aaa;">Waiting…</div>
+  </div>
+
+</main>
+
+<footer>
+  Datadog Synthetics test page &nbsp;·&nbsp; No external dependencies &nbsp;·&nbsp; iframe embedding blocked
+</footer>
+
+<script>
+  var timerInterval = null;
+  var timerSeconds = 0;
+
+  function pad(n) { return String(n).padStart(2, "0"); }
+
+  function updateTimerDisplay() {
+    var h = Math.floor(timerSeconds / 3600);
+    var m = Math.floor((timerSeconds % 3600) / 60);
+    var s = timerSeconds % 60;
+    document.getElementById("timer").textContent = pad(h) + ":" + pad(m) + ":" + pad(s);
+  }
+
+  function startTimer() {
+    if (timerInterval) return;
+    timerInterval = setInterval(function() { timerSeconds++; updateTimerDisplay(); }, 1000);
+  }
+
+  function stopTimer() {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+
+  function resetTimer() {
+    stopTimer();
+    timerSeconds = 0;
+    updateTimerDisplay();
+  }
+
+  function submitForm() {
+    var name  = document.getElementById("f-name").value.trim();
+    var email = document.getElementById("f-email").value.trim();
+    var result = document.getElementById("form-result");
+    if (!name || !email) {
+      result.className = "error";
+      result.textContent = "✗ Please fill in name and email.";
+      result.style.display = "block";
+    } else {
+      result.className = "success";
+      result.textContent = "✓ Form submitted successfully for " + name + " (" + email + ")";
+      result.style.display = "block";
+    }
+  }
+
+  function resetForm() {
+    ["f-name","f-email","f-pass","f-notes"].forEach(function(id) {
+      document.getElementById(id).value = "";
+    });
+    document.getElementById("f-role").selectedIndex = 0;
+    var r = document.getElementById("form-result");
+    r.style.display = "none";
+    r.textContent = "";
+  }
+
+  window.addEventListener("DOMContentLoaded", function() {
+    var t = performance.now();
+    document.getElementById("load-ms").textContent = Math.round(t);
+    document.getElementById("assert-timestamp").textContent = new Date().toISOString();
+
+    var iframeBadge = document.getElementById("badge-iframe");
+    if (window.self !== window.top) {
+      iframeBadge.textContent = "⚠ Loaded inside iframe";
+      iframeBadge.className = "badge red";
+    } else {
+      iframeBadge.textContent = "✓ Not in iframe";
+      iframeBadge.className = "badge green";
+    }
+
+    setTimeout(function() {
+      document.getElementById("delayed-element").style.display = "block";
+      document.getElementById("delayed-placeholder").style.display = "none";
+    }, 3000);
+  });
+</script>
+</body>
+</html>
